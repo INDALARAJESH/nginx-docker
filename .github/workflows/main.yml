@@ -1,0 +1,49 @@
+name: main-ci
+
+on:
+  push:
+    branches:
+      - feature/pipeline
+jobs:
+  Build-Push-Commit:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v1
+              with:
+                  aws-access-key-id: ${{ secrets.ADMIN_PROD_AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.ADMIN_PROD_AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ap-south-1
+
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v1           
+
+            - uses: actions/checkout@v3
+            - name: Set env
+              run: echo "GITHUB_BRANCH=$(echo $GITHUB_SHA)" >> $GITHUB_ENV
+
+            - name: Build the Docker image And Pushing in GitOps
+              run: |
+                  docker build -t  289744222958.dkr.ecr.ap-south-1.amazonaws.com/llm-ai-pdf-file-reader:$GITHUB_SHA .
+
+                  docker push 289744222958.dkr.ecr.ap-south-1.amazonaws.com/llm-ai-pdf-file-reader:$GITHUB_SHA 
+
+                  git clone https://${{ secrets.AWS_GITHUB_USER }}:${{ secrets.AWS_GITHUB_TOKEN }}@github.com/kutumbh/imeuswe-gitops
+
+                  cd imeuswe-gitops
+
+                  git checkout eks2
+
+                  git config user.name "$GITHUB_ACTOR"
+
+                  git config user.email "$GITHUB_ACTOR@sptr.co"
+
+                  yq e '.spec.template.spec.containers[0].image = "289744222958.dkr.ecr.ap-south-1.amazonaws.com/llm-ai-pdf-file-reader:${{ env.GITHUB_BRANCH }}"' -i deployment.apps/pdfreader.yaml
+
+                  git add .
+
+                  git commit -m "updating newer prod env image."
+
+                  git push --set-upstream origin eks2
