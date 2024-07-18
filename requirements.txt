@@ -3,3 +3,9 @@ PyPDF2
 langchain
 langchain_google_genai
 google
+python-dotenv
+tabula-py
+camelot-py[cv]
+pdfplumber
+chromadb
+openai
