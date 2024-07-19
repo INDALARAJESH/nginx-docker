@@ -1,40 +1,58 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim
+# Stage 1: Build stage with full dependencies
+FROM python:3.10-alpine as builder
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    libxml2-dev \
+    libxslt-dev \
+    gcc \
+    g++ \
+    libffi-dev \
+    musl-dev \
+    libmagic \
+    jpeg-dev \
+    zlib-dev \
+    libjpeg \
+    poppler-utils \
+    poppler-data
 
-# Update and upgrade existing packages
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends \
-        libgl1-mesa-glx \
-        libglib2.0-0 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Copy the requirements.txt file into the container at /app
+# Copy and install Python dependencies
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -U langchain-community
 
-# Install any dependencies specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Stage 2: Runtime stage with minimal dependencies
+FROM python:3.10-alpine
 
-# Install langchain-community
-RUN pip install --no-cache-dir -U langchain-community
+# Install runtime dependencies
+RUN apk add --no-cache \
+    libmagic \
+    jpeg-dev \
+    zlib-dev \
+    libjpeg \
+    poppler-utils \
+    poppler-data
 
-# Copy the rest of the working directory contents into the container at /app
+# Set the working directory
+WORKDIR /app
+
+# Copy only necessary files from the build stage
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application files
 COPY . .
 
 # Expose port 8501 for Streamlit
 EXPOSE 8501
 
 # Set environment variables
-ENV GOOGLE_API_KEY=${GOOGLE_API_KEY}
-ENV CHATGPT=${CHATGPT}
+ENV GOOGLE_API_KEY=${GOOGLE_API_KEY} \
+    CHATGPT=${CHATGPT}
 
 # Run Streamlit when the container launches
 CMD ["streamlit", "run", "chatbot.py"]
-
