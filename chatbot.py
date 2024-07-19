@@ -33,7 +33,6 @@ pdf_content = ""  # Global variable to store PDF content
 feedback_data = []  # Global variable to store user feedback data
 
 # Function Definitions
-
 def extract_pdf_text(pdf):
     pdf_reader = PdfReader(pdf)
     text = ""
@@ -182,4 +181,83 @@ def user_input(user_question, conversation_history):
         st.error(f"Error processing your request: {e}")
         return conversation_history, "An error occurred. Please try again.", []
 
-def
+def process_pdf(pdf):
+    global pdf_content
+    try:
+        text = extract_pdf_text(pdf)
+        structured_data = extract_structured_data(pdf)
+        multicolumn_text = extract_multicolumn_text(pdf)
+        full_content = text + "\n" + structured_data + "\n" + multicolumn_text
+        text_chunks = get_text_chunks(full_content)
+        save_to_chroma(text_chunks)
+        pdf_content = full_content
+        return pdf.name
+    except Exception as e:
+        st.error(f"Error processing PDF {pdf.name}: {e}")
+        return None
+
+def show_warning(message, duration=5):
+    warning_placeholder = st.empty()
+    warning_placeholder.warning(message)
+    time.sleep(duration)
+    warning_placeholder.empty()
+
+def show_success(message, duration=5):
+    success_placeholder = st.empty()
+    success_placeholder.success(message)
+    time.sleep(duration)
+    success_placeholder.empty()
+
+def continuous_learning_and_improvement(feedback_data):
+    if feedback_data:
+        for entry in feedback_data:
+            # Process feedback data and update model
+            pass
+        print("Model updated based on user feedback.")
+    else:
+        print("No user feedback available.")
+
+def main():
+    st.set_page_config("Chat with multiple PDF")
+    st.title("Chat with PDF")
+
+    conversation_history = []
+    session_name = None
+    session_history = []
+
+    user_question = st.text_input("Ask a Question from the PDF Files")
+
+    if user_question:
+        if not session_name:
+            session_name = user_question[:50]
+        conversation_history, bot_response, chat_session = user_input(user_question, conversation_history)
+        session_history.extend(chat_session)
+        response_height = min(300, max(100, len(bot_response) // 2))
+        st.text_area("Bot:", value=bot_response, height=response_height)
+
+    with st.sidebar:
+        st.title("Menu:")
+        pdf_docs = st.sidebar.file_uploader("Upload your PDF Files", accept_multiple_files=True)
+        if pdf_docs:
+            if st.sidebar.button("Process"):
+                with st.spinner("Processing..."):
+                    uploaded_pdfs = load_uploaded_pdfs()
+                    with ThreadPoolExecutor(max_workers=4) as executor:
+                        processed_files = list(executor.map(process_pdf, pdf_docs))
+                    for pdf_name in processed_files:
+                        if pdf_name:
+                            if pdf_name in uploaded_pdfs:
+                                show_warning(f"{pdf_name} already uploaded!")
+                                continue
+                            uploaded_pdfs.append(pdf_name)
+                    save_uploaded_pdfs(uploaded_pdfs)
+                    show_success("Done")
+
+    if session_name and st.sidebar.button("Save Conversation"):
+        save_conversation_session(session_name, session_history)
+        show_success(f"Conversation saved as session: {session_name}")
+
+    continuous_learning_and_improvement(feedback_data)
+
+if __name__ == "__main__":
+    main()
